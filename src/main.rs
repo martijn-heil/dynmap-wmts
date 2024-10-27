@@ -1,15 +1,16 @@
 #[macro_use] extern crate rocket;
-use std::collections::HashSet;
-use std::path::Path;
 use bytes::Bytes;
 use dotenv::dotenv;
 use handlebars::Handlebars;
 use ordered_float::NotNan;
 use rocket::State;
+use rocket::fairing::AdHoc;
 use rocket::http::ContentType;
 use rocket::http::Status;
 use rocket::response::stream::ReaderStream;
 use serde::{Serialize};
+use std::collections::HashSet;
+use std::path::Path;
 use tokio_util::io::StreamReader;
 
 mod dynmap;
@@ -121,7 +122,7 @@ async fn get_capabilities(dynmap: &State<Dynmap>) -> Result<(ContentType, String
 
     let reg = Handlebars::new();
     let response = reg.render_template(CAPABILITIES_TEMPLATE, &capabilities);
-    Ok((ContentType::Text, response.unwrap()))
+    Ok((ContentType::XML, response.unwrap()))
 }
 
 #[get("/tiles/<world>/<map>/<tile_matrix>/<tile_col>/<file>")]
@@ -178,6 +179,11 @@ fn rocket() -> _ {
 
     rocket::build()
         .manage(dynmap)
+        .attach(AdHoc::on_response("CORS", |_, resp| Box::pin(async move {
+            resp.set_raw_header("Access-Control-Allow-Origin", "*");
+            resp.set_raw_header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, OPTIONS");
+            resp.set_raw_header("Access-Control-Allow-Headers", "DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type");
+        })))
         .mount("/", routes![get_capabilities, get_tile])
 }
 
